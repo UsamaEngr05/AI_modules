@@ -24,10 +24,26 @@
     background:linear-gradient(135deg,#7b3fe4,#2f6fed);box-shadow:0 2px 8px rgba(91,77,240,.35);transition:transform .15s,box-shadow .15s}
   .ai-btn:hover{transform:scale(1.07);box-shadow:0 4px 14px rgba(91,77,240,.5)}
   .ai-btn.on{outline:3px solid #d9d2fb}
-  .ai-pop{display:none;position:absolute;right:0;top:50px;width:240px;background:#fff;border:1px solid var(--line);border-radius:12px;
-    padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:5;font-size:13px}
-  .ai-pop.open{display:block}
-  .ai-pop p{margin:6px 0 0;color:var(--muted)}
+  .ai-panel{position:fixed;top:0;right:0;height:100vh;width:420px;max-width:100vw;background:#fff;border-left:1px solid var(--line);
+    box-shadow:-8px 0 24px rgba(0,0,0,.10);transform:translateX(105%);transition:transform .25s ease;z-index:20;display:flex;flex-direction:column}
+  .ai-panel.open{transform:none}
+  .ai-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);
+    background:linear-gradient(135deg,#f4efff,#eef3ff)}
+  .ai-head b{font-size:16px}
+  .ai-head button{border:0;background:none;font-size:18px;cursor:pointer;color:var(--muted)}
+  .ai-sub{padding:10px 18px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--line)}
+  .ai-sub b{color:var(--text)}
+  .ai-body{flex:1;overflow:auto;padding:18px;font-size:14.5px;line-height:1.65;white-space:pre-wrap}
+  .ai-body.err{color:#b3261e}
+  .ai-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap}
+  .ai-foot button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+  .ai-foot button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .ai-payload{display:none;margin:0 18px 12px;max-height:220px;overflow:auto;background:#0f1115;color:#d6e2ff;border-radius:8px;
+    padding:10px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre}
+  .ai-payload.open{display:block}
+  .spinner{width:18px;height:18px;border:2px solid #d9d2fb;border-top-color:#7b3fe4;border-radius:50%;display:inline-block;
+    animation:spin .8s linear infinite;vertical-align:-4px;margin-right:8px}
+  @keyframes spin{to{transform:rotate(360deg)}}
   main{flex:1;display:grid;grid-template-columns:210px 390px 1fr;min-height:0}
   aside{border-right:1px solid var(--line);padding:16px 10px;overflow:auto;background:var(--panel)}
   aside h4{margin:14px 10px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
@@ -102,10 +118,6 @@
     <button class="ai-btn" id="ai-btn" title="AI Assistant" aria-label="AI Assistant">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2z" fill="currentColor"/><path d="M19 14l.9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9L19 14z" fill="currentColor" opacity=".75"/><path d="M5 15l.6 1.6 1.6.6-1.6.6L5 19.4l-.6-1.6-1.6-.6 1.6-.6L5 15z" fill="currentColor" opacity=".6"/></svg>
     </button>
-    <div class="ai-pop" id="ai-pop">
-      <b>✨ AI Assistant</b>
-      <p>Ye feature jald aa raha hai.</p>
-    </div>
   </div>
 </header>
 
@@ -114,6 +126,18 @@
   <section class="list" id="list"></section>
   <section class="reader" id="reader"><div class="placeholder">Koi message select karain</div></section>
 </main>
+
+<aside class="ai-panel" id="ai-panel" aria-label="AI Summary">
+  <div class="ai-head"><b>✨ AI Summary</b><button id="ai-close" title="Close">✕</button></div>
+  <div class="ai-sub" id="ai-sub"></div>
+  <div class="ai-body" id="ai-body"></div>
+  <pre class="ai-payload" id="ai-payload"></pre>
+  <div class="ai-foot">
+    <button class="primary" id="ai-retry">↻ Dobara summary</button>
+    <button id="ai-copy">Copy</button>
+    <button id="ai-show-payload">Bheja gaya JSON</button>
+  </div>
+</aside>
 
 <div class="modal" id="modal">
   <div class="modal-box">
@@ -556,7 +580,7 @@ function openPreview(att){
 function closePreview(){ $("#modal").classList.remove("open"); }
 $("#modal-close").addEventListener("click",closePreview);
 $("#modal").addEventListener("click",e=>{ if(e.target.id==="modal") closePreview(); });
-document.addEventListener("keydown",e=>{ if(e.key==="Escape") closePreview(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closePreview(); closeAI(); } });
 
 /* ---------- events ---------- */
 function searchFor(text){ qInput.value=text; folder="all"; renderAll(); }
@@ -578,10 +602,70 @@ $("#reader").addEventListener("click",e=>{
   const att = e.target.closest(".att");
   if(att){ const m = MESSAGES.find(x=>x.id===selectedId); openPreview(m.attachments[+att.dataset.att]); }
 });
-/* AI button – placeholder; hook the real AI feature into openAI() */
-function openAI(){ $("#ai-pop").classList.toggle("open"); $("#ai-btn").classList.toggle("on"); }
-$("#ai-btn").addEventListener("click",e=>{ e.stopPropagation(); openAI(); });
-document.addEventListener("click",e=>{ if(!e.target.closest(".ai-wrap")){ $("#ai-pop").classList.remove("open"); $("#ai-btn").classList.remove("on"); } });
+/* ---------- AI summary: POST current search results to the backend ---------- */
+const AI_ENDPOINT = "http://127.0.0.1:8000/summarize";
+let lastAnswer = "";
+
+function attachmentToJSON(a){
+  const o = {name:a.name, type:a.type, size:a.size};
+  if(a.type==="pdf" && a.doc){
+    const d=a.doc;
+    o.text = [d.title, d.org, ...(d.paras||[]), ...(d.table||[]).map(r=>r.join(" | ")),
+              (d.sig||"").replace(/<br>/g," ")].filter(Boolean).join("\n");
+  }
+  return o;
+}
+function emailToJSON(m){
+  return {id:m.id, from:m.from, email:m.email, dept:m.dept, date:m.d || m.time,
+    subject:m.subject, tags:m.tags, details:m.info || {}, body:m.body,
+    attachments:(m.attachments||[]).map(attachmentToJSON)};
+}
+function buildPayload(){
+  const q = parseQuery(qInput.value);
+  const emails = MESSAGES.filter(m=>matches(m,q)).map(emailToJSON);
+  return {query: qInput.value.trim(), emails};
+}
+function extractText(raw){
+  // backend plain string, JSON string, ya {summary|result|response|text|message: "..."} — sab handle
+  try{
+    const j = JSON.parse(raw);
+    if(typeof j==="string") return j;
+    for(const k of ["summary","result","response","text","message","output","answer"]) if(typeof j?.[k]==="string") return j[k];
+    return JSON.stringify(j,null,2);
+  }catch{ return raw; }
+}
+
+async function runAI(){
+  const payload = buildPayload();
+  const body = $("#ai-body");
+  $("#ai-panel").classList.add("open"); $("#ai-btn").classList.add("on");
+  $("#ai-sub").innerHTML = `Query: <b>${esc(payload.query || "(khaali – current list)")}</b> · ${payload.emails.length} email${payload.emails.length!==1?"s":""} bheji gayi`;
+  $("#ai-payload").textContent = JSON.stringify(payload,null,2);
+  body.classList.remove("err");
+  if(!payload.emails.length){ body.textContent = "Is search mein koi email nahi mili, pehle kuch search karain (jaise “Raza”)."; return; }
+  body.innerHTML = `<span class="spinner"></span>AI summary bana raha hai…`;
+  try{
+    const res = await fetch(AI_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    const raw = await res.text();
+    if(!res.ok) throw new Error(`Server ne ${res.status} ${res.statusText} return kiya\n\n${raw}`);
+    lastAnswer = extractText(raw);
+    body.textContent = lastAnswer || "(Server ne khaali jawab bheja)";
+  }catch(err){
+    body.classList.add("err");
+    body.textContent = "⚠ AI server se connect nahi ho saka.\n\n" + (err.message||err) +
+      "\n\nCheck karain:\n• Backend " + AI_ENDPOINT + " chal raha hai?\n• Backend mein CORS allow hai?\n• Page apne computer pe (local file / localhost) khola hai? claude.ai wala link localhost ko call nahi kar sakta.";
+  }
+}
+function closeAI(){ $("#ai-panel").classList.remove("open"); $("#ai-btn").classList.remove("on"); }
+$("#ai-btn").addEventListener("click",()=>{ $("#ai-panel").classList.contains("open") ? closeAI() : runAI(); });
+$("#ai-close").addEventListener("click",closeAI);
+$("#ai-retry").addEventListener("click",runAI);
+$("#ai-show-payload").addEventListener("click",()=>$("#ai-payload").classList.toggle("open"));
+$("#ai-copy").addEventListener("click",async()=>{
+  try{ await navigator.clipboard.writeText($("#ai-body").textContent); $("#ai-copy").textContent="Copied ✓"; }
+  catch{ $("#ai-copy").textContent="Copy nahi hua"; }
+  setTimeout(()=>$("#ai-copy").textContent="Copy",1500);
+});
 qInput.addEventListener("input",()=>{renderList();renderReader();});
 $("#clear").addEventListener("click",()=>{qInput.value="";renderAll();qInput.focus();});
 
